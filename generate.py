@@ -10,11 +10,14 @@ imgHeightScale = 1080.0/1920*17.5/7*7/8
 print(imgHeightScale)
 
 
-def brightenFunc(bfac):
+def brightenFuncLinear(bfac):
 	return lambda v: 255 - int((1.0-bfac)*(255 - v))
 
+def brightenFuncCube(bfac):
+	return lambda v: 255 - int(((1 - v/255.0) ** 3) * 255.0)
+
 def main():
-	(sz, bimg) = loadImageDither("mona-lisa.jpg", brightenFunc(0.7))
+	(sz, bimg) = loadImageDither("mona-lisa.jpg", brightenFuncCube(0.7))
 	#(sz, bimg) = loadImageDither("test.jpg", lambda v: v, lambda v: 0.5*v if v < 0 else v)
 	bdata = convertToBinary(sz, bimg)
 
