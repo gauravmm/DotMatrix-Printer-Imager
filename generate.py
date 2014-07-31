@@ -6,19 +6,25 @@ imgHorizontalPixelDensityModes = [(1, 'K'), (2, 'L'), (2, 'Y'), (4, 'Z')]
 
 imgHorizontalPixelDensity = 2
 imgWidth = 816
-imgHeightScale = 1080.0/1920*17.5/7*7/8
+imgHeightScale = 1080.0/1920*17.5/7*7/8 # Aspect ratio correction.
 print(imgHeightScale)
 
 
 def brightenFuncLinear(bfac):
 	return lambda v: 255 - int((1.0-bfac)*(255 - v))
 
-def brightenFuncCube(bfac):
+def brightenFuncCube():
 	return lambda v: 255 - int(((1 - v/255.0) ** 3) * 255.0)
 
+def ditherQuantErrLinear(darkFac, lightFac=1.0):
+	return lambda q: darkFac * q if q < 0 else q*lightFac
+
+def ditherQuantErrPower(qFac):
+	return lambda q: (-1 if q < 0 else 1) * (abs(q) **  qFac)
+
 def main():
-	(sz, bimg) = loadImageDither("mona-lisa.jpg", brightenFuncCube(0.7))
-	#(sz, bimg) = loadImageDither("test.jpg", lambda v: v, lambda v: 0.5*v if v < 0 else v)
+	(sz, bimg) = loadImageDither("mona-lisa.jpg", ditherHorizontal, brightenFuncCube())
+
 	bdata = convertToBinary(sz, bimg)
 
 	with open("/dev/usb/lp0", 'wb') as printer:
@@ -66,8 +72,31 @@ def convertToBinary(sz, img):
 
 	return rv
 
+def ditherFS(wd, ht, pix, ditherBleed):
+	# http://en.wikipedia.org/wiki/Floyd%E2%80%93Steinberg_dithering
+	for y in range(ht):
+		for x in range(wd):
+			oldpixel = pix[x,y]
+			newpixel = 0 if oldpixel < 128 else 255
+			pix[x,y] = newpixel
+			quant_error = ditherBleed(oldpixel - newpixel)
+			if x > 0:
+				pix[x - 1, y + 1] += quant_error * 3/16
+			pix[x + 1, y    ] += quant_error * 7/16
+			pix[x    , y + 1] += quant_error * 5/16
+			pix[x + 1, y + 1] += quant_error * 1/16
 
-def loadImageDither(fname, brightnessAdjust=lambda v: v, ditherBleed=lambda v: v):
+def ditherHorizontal(wd, ht, pix, ditherBleed):
+	for y in range(ht):
+		for x in range(wd):
+			oldpixel = pix[x,y]
+			newpixel = 0 if oldpixel < 128 else 255
+			pix[x,y] = newpixel
+			quant_error = ditherBleed(oldpixel - newpixel)
+			pix[x + 1, y    ] += quant_error
+
+
+def loadImageDither(fname, ditherFunc, brightnessAdjust=lambda v: v, ditherBleed=lambda v: v):
 	img_original = Image.open(fname).convert("L")
 	img_original = img_original.point(brightnessAdjust)
 
@@ -82,24 +111,10 @@ def loadImageDither(fname, brightnessAdjust=lambda v: v, ditherBleed=lambda v: v
 	# An extra row and column keeps 
 	img_resized = img_original.resize((wd + 1, ht + 1))
 	pix = img_resized.load()
-	# img_resized.show()
 
-	# http://en.wikipedia.org/wiki/Floyd%E2%80%93Steinberg_dithering
-	for y in range(ht):
-		for x in range(wd):
-			oldpixel = pix[x,y]
-			newpixel = 0 if oldpixel < 128 else 255
-			pix[x,y] = newpixel
-			quant_error = ditherBleed(oldpixel - newpixel)
-			if x > 0:
-				pix[x - 1, y + 1] = pix[x - 1, y + 1] + quant_error * 3/16
-			pix[x + 1, y    ] = pix[x + 1, y    ] + quant_error * 7/16
-			pix[x    , y + 1] = pix[x    , y + 1] + quant_error * 5/16
-			pix[x + 1, y + 1] = pix[x + 1, y + 1] + quant_error * 1/16
-
+	ditherFunc(wd, ht, pix, ditherBleed)
+	
 	img_resized.show()
-
-	#return ((wd, ht), [[True if pix[i,j] == 0 else False for i in range(wd)] for j in range(ht)])
 	return ((wd, ht), pix)
 
 
