@@ -23,7 +23,7 @@ def ditherQuantErrPower(qFac):
 	return lambda q: (-1 if q < 0 else 1) * (abs(q) **  qFac)
 
 def main():
-	(sz, bimg) = loadImageDither("mona-lisa.jpg", ditherHorizontal, brightenFuncCube())
+	(sz, bimg) = loadImageDither("mona-lisa.jpg", ditherFS, brightenFuncCube())
 
 	bdata = convertToBinary(sz, bimg)
 
